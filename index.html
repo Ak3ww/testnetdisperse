@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Disperse BNB & $AVG</title>
+  <script src="https://cdn.ethers.io/lib/ethers-5.2.umd.min.js"></script>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="container">
+    <h1>Disperse BNB</h1>
+    <textarea id="bnbRecipients" placeholder="Recipient addresses (one per line)"></textarea>
+    <textarea id="bnbAmounts" placeholder="Amounts in BNB (one per line)"></textarea>
+    <button onclick="disperseBNB()">Send BNB</button>
+
+    <hr />
+
+    <h1>Disperse $AVG (or Custom Token)</h1>
+    <input id="tokenAddress" type="text" placeholder="Token address" value="0xa41F142b6eb2b164f8164CAE0716892Ce02f311f"/>
+    <textarea id="tokenRecipients" placeholder="Recipient addresses (one per line)"></textarea>
+    <textarea id="tokenAmounts" placeholder="Amounts (decimals: 18)"></textarea>
+    <button onclick="approveToken()">Approve Token</button>
+    <button onclick="disperseToken()">Send Token</button>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
