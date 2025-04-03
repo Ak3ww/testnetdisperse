@@ -16,6 +16,9 @@ export default function Home() {
   const [mode, setMode] = useState('');
   const [inputText, setInputText] = useState('');
   const [approved, setApproved] = useState(false);
+  const [preview, setPreview] = useState({ count: 0, total: '0.0' });
+  const [txHash, setTxHash] = useState('');
+  const [success, setSuccess] = useState(false);
 
   const [provider, setProvider] = useState(null);
   const [signer, setSigner] = useState(null);
@@ -53,6 +56,27 @@ export default function Home() {
     return { recipients, amounts };
   };
 
+  const updatePreview = () => {
+    const lines = inputText.trim().split('\n');
+    let count = 0;
+    let total = ethers.BigNumber.from(0);
+    try {
+      for (const line of lines) {
+        const [address, amount] = line.split(/[, ]+/);
+        if (ethers.utils.isAddress(address) && !isNaN(parseFloat(amount))) {
+          count++;
+          total = total.add(ethers.utils.parseUnits(amount.trim(), 18));
+        }
+      }
+      setPreview({
+        count,
+        total: ethers.utils.formatUnits(total, 18)
+      });
+    } catch {
+      setPreview({ count: 0, total: '0.0' });
+    }
+  };
+
   const approveAVG = async () => {
     const { amounts } = parseInput();
     const total = amounts.reduce((sum, a) => sum.add(a), ethers.BigNumber.from(0));
@@ -63,7 +87,6 @@ export default function Home() {
 
     const tx = await avgToken.approve(CONTRACT_ADDRESS, total);
     await tx.wait();
-    alert("Approval successful");
     setApproved(true);
   };
 
@@ -71,30 +94,37 @@ export default function Home() {
     const { recipients, amounts } = parseInput();
     if (!recipients.length) return alert("No valid recipients found.");
 
+    setSuccess(false);
+    setTxHash('');
+
+    let tx;
     if (mode === 'bnb') {
       const total = amounts.reduce((sum, a) => sum.add(a), ethers.BigNumber.from(0));
-      const tx = await contract.disperseBNB(recipients, amounts, { value: total });
-      await tx.wait();
-      alert("BNB sent!");
-    } else if (mode === 'avg') {
-      const tx = await contract.disperseToken(AVG_TOKEN_ADDRESS, recipients, amounts);
-      await tx.wait();
-      alert("AVG tokens sent!");
+      tx = await contract.disperseBNB(recipients, amounts, { value: total });
+    } else {
+      tx = await contract.disperseToken(AVG_TOKEN_ADDRESS, recipients, amounts);
     }
+
+    setTxHash(tx.hash);
+    await tx.wait();
+    setSuccess(true);
   };
 
   return (
     <div className={styles.container}>
-      <h1>BNB / $AVG Disperse</h1>
+      <h1 className={styles.title}>BNB / $AVG Disperse</h1>
+
       {!walletAddress ? (
         <Button onClick={connectWallet}>Connect Wallet</Button>
       ) : (
         <>
-          <p>Connected: {walletAddress}</p>
+          <p className={styles.connected}>Connected: {walletAddress}</p>
 
-          <select onChange={(e) => {
+          <select className={styles.select} onChange={(e) => {
             setMode(e.target.value);
             setApproved(false);
+            setSuccess(false);
+            setTxHash('');
           }}>
             <option value="">Select Token</option>
             <option value="bnb">BNB</option>
@@ -104,18 +134,36 @@ export default function Home() {
           {mode && (
             <>
               <textarea
+                className={styles.textarea}
                 value={inputText}
-                onChange={(e) => setInputText(e.target.value)}
+                onChange={(e) => {
+                  setInputText(e.target.value);
+                  updatePreview();
+                }}
                 placeholder="0xAddress, 1.23"
                 rows={8}
               />
+
+              <div className={styles.preview}>
+                👥 Recipients: <strong>{preview.count}</strong> | 💰 Total: <strong>{preview.total} {mode === 'bnb' ? 'BNB' : 'AVG'}</strong>
+              </div>
 
               {mode === 'avg' && !approved && (
                 <Button onClick={approveAVG}>Approve $AVG</Button>
               )}
 
               {(mode === 'bnb' || approved) && (
-                <Button onClick={sendDisperse}>Send</Button>
+                <>
+                  <Button onClick={sendDisperse}>Send</Button>
+                  {success && txHash && (
+                    <p className={styles.txinfo}>
+                      ✅ Transaction sent!{' '}
+                      <a href={`https://bscscan.com/tx/${txHash}`} target="_blank" rel="noopener noreferrer">
+                        View on BscScan
+                      </a>
+                    </p>
+                  )}
+                </>
               )}
             </>
           )}
