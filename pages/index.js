@@ -11,6 +11,11 @@ const CONTRACT_ABI = [
   "function disperseToken(address token, address[] calldata recipients, uint256[] calldata amounts) external"
 ];
 
+const AVG_ABI = [
+  "function approve(address spender, uint256 amount) public returns (bool)",
+  "function allowance(address owner, address spender) public view returns (uint256)"
+];
+
 export default function Home() {
   const [walletAddress, setWalletAddress] = useState('');
   const [mode, setMode] = useState('');
@@ -23,22 +28,41 @@ export default function Home() {
   const [provider, setProvider] = useState(null);
   const [signer, setSigner] = useState(null);
   const [contract, setContract] = useState(null);
+  const [avgToken, setAvgToken] = useState(null);
 
-  const connectWallet = async () => {
-    if (!window.ethereum) {
-      alert("Please install MetaMask.");
-      return;
+  const BNB_CHAIN_ID = '0x38';
+
+  const ensureBNBChain = async () => {
+    try {
+      const currentChain = await window.ethereum.request({ method: 'eth_chainId' });
+      if (currentChain !== BNB_CHAIN_ID) {
+        await window.ethereum.request({
+          method: 'wallet_switchEthereumChain',
+          params: [{ chainId: BNB_CHAIN_ID }]
+        });
+      }
+    } catch (switchError) {
+      if (switchError.code === 4902) {
+        try {
+          await window.ethereum.request({
+            method: 'wallet_addEthereumChain',
+            params: [{
+              chainId: BNB_CHAIN_ID,
+              chainName: 'BNB Smart Chain',
+              nativeCurrency: { name: 'BNB', symbol: 'BNB', decimals: 18 },
+              rpcUrls: ['https://bsc-dataseed.binance.org/'],
+              blockExplorerUrls: ['https://bscscan.com']
+            }]
+          });
+        } catch (addError) {
+          alert("Failed to switch to BNB Chain.");
+          throw addError;
+        }
+      } else {
+        alert("Failed to switch to BNB Chain.");
+        throw switchError;
+      }
     }
-
-    const web3Provider = new ethers.providers.Web3Provider(window.ethereum);
-    await web3Provider.send("eth_requestAccounts", []);
-    const signer = web3Provider.getSigner();
-    const address = await signer.getAddress();
-
-    setWalletAddress(address);
-    setProvider(web3Provider);
-    setSigner(signer);
-    setContract(new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer));
   };
 
   const parseInput = () => {
@@ -77,20 +101,57 @@ export default function Home() {
     }
   };
 
+  const connectWallet = async () => {
+    if (!window.ethereum) return alert("Install MetaMask");
+
+    const web3Provider = new ethers.providers.Web3Provider(window.ethereum);
+    await web3Provider.send("eth_requestAccounts", []);
+    const signer = web3Provider.getSigner();
+    const address = await signer.getAddress();
+
+    setWalletAddress(address);
+    setProvider(web3Provider);
+    setSigner(signer);
+
+    const disperseContract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
+    const avg = new ethers.Contract(AVG_TOKEN_ADDRESS, AVG_ABI, signer);
+    setContract(disperseContract);
+    setAvgToken(avg);
+  };
+
+  const disconnectWallet = () => {
+    setWalletAddress('');
+    setMode('');
+    setInputText('');
+    setApproved(false);
+    setTxHash('');
+    setSuccess(false);
+    setPreview({ count: 0, total: '0.0' });
+  };
+
+  const checkApproval = async () => {
+    if (!avgToken || !walletAddress) return;
+    const allowance = await avgToken.allowance(walletAddress, CONTRACT_ADDRESS);
+    setApproved(allowance.gt(ethers.utils.parseUnits('1', 18)));
+  };
+
   const approveAVG = async () => {
-    const { amounts } = parseInput();
-    const total = amounts.reduce((sum, a) => sum.add(a), ethers.BigNumber.from(0));
-
-    const avgToken = new ethers.Contract(AVG_TOKEN_ADDRESS, [
-      "function approve(address spender, uint256 amount) public returns (bool)"
-    ], signer);
-
-    const tx = await avgToken.approve(CONTRACT_ADDRESS, total);
+    await ensureBNBChain();
+    const tx = await avgToken.approve(CONTRACT_ADDRESS, ethers.constants.MaxUint256);
     await tx.wait();
     setApproved(true);
   };
 
+  const revokeAVG = async () => {
+    await ensureBNBChain();
+    const tx = await avgToken.approve(CONTRACT_ADDRESS, 0);
+    await tx.wait();
+    setApproved(false);
+  };
+
   const sendDisperse = async () => {
+    await ensureBNBChain();
+
     const { recipients, amounts } = parseInput();
     if (!recipients.length) return alert("No valid recipients found.");
 
@@ -110,65 +171,78 @@ export default function Home() {
     setSuccess(true);
   };
 
+  useEffect(() => {
+    if (mode === 'avg') checkApproval();
+  }, [mode, walletAddress, avgToken]);
+
   return (
-    <div className={styles.container}>
-      <h1 className={styles.title}>BNB / $AVG Disperse</h1>
+    <div className={styles.fullPage}>
+      <div className={styles.container}>
+        <h1 className={styles.title}>BNB / $AVG Disperse</h1>
 
-      {!walletAddress ? (
-        <Button onClick={connectWallet}>Connect Wallet</Button>
-      ) : (
-        <>
-          <p className={styles.connected}>Connected: {walletAddress}</p>
+        {!walletAddress ? (
+          <Button onClick={connectWallet}>Connect Wallet</Button>
+        ) : (
+          <>
+            <p className={styles.connected}>
+              Connected: {walletAddress}
+              <span className={styles.disconnect} onClick={disconnectWallet}>Disconnect</span>
+            </p>
 
-          <select className={styles.select} onChange={(e) => {
-            setMode(e.target.value);
-            setApproved(false);
-            setSuccess(false);
-            setTxHash('');
-          }}>
-            <option value="">Select Token</option>
-            <option value="bnb">BNB</option>
-            <option value="avg">AVG Token</option>
-          </select>
+            <select className={styles.select} onChange={(e) => {
+              setMode(e.target.value);
+              setApproved(false);
+              setSuccess(false);
+              setTxHash('');
+            }}>
+              <option value="">Select Token</option>
+              <option value="bnb">BNB</option>
+              <option value="avg">$AVG</option>
+            </select>
 
-          {mode && (
-            <>
-              <textarea
-                className={styles.textarea}
-                value={inputText}
-                onChange={(e) => {
-                  setInputText(e.target.value);
-                  updatePreview();
-                }}
-                placeholder="0xAddress, 1.23"
-                rows={8}
-              />
+            {mode && (
+              <>
+                <textarea
+                  className={styles.textarea}
+                  value={inputText}
+                  onChange={(e) => {
+                    setInputText(e.target.value);
+                    updatePreview();
+                  }}
+                  placeholder="0xAddress, 1.23"
+                  rows={8}
+                />
 
-              <div className={styles.preview}>
-                👥 Recipients: <strong>{preview.count}</strong> | 💰 Total: <strong>{preview.total} {mode === 'bnb' ? 'BNB' : 'AVG'}</strong>
-              </div>
+                <div className={styles.preview}>
+                  👥 Recipients: <strong>{preview.count}</strong> | 💰 Total: <strong>{preview.total} {mode === 'bnb' ? 'BNB' : 'AVG'}</strong>
+                </div>
 
-              {mode === 'avg' && !approved && (
-                <Button onClick={approveAVG}>Approve $AVG</Button>
-              )}
+                {mode === 'avg' && !approved && (
+                  <Button onClick={approveAVG}>Approve $AVG</Button>
+                )}
 
-              {(mode === 'bnb' || approved) && (
-                <>
-                  <Button onClick={sendDisperse}>Send</Button>
-                  {success && txHash && (
-                    <p className={styles.txinfo}>
-                      ✅ Transaction sent!{' '}
-                      <a href={`https://bscscan.com/tx/${txHash}`} target="_blank" rel="noopener noreferrer">
-                        View on BscScan
-                      </a>
-                    </p>
-                  )}
-                </>
-              )}
-            </>
-          )}
-        </>
-      )}
+                {mode === 'avg' && approved && (
+                  <Button onClick={revokeAVG}>Revoke Approval</Button>
+                )}
+
+                {(mode === 'bnb' || approved) && (
+                  <>
+                    <Button onClick={sendDisperse}>Send</Button>
+                    {success && txHash && (
+                      <p className={styles.txinfo}>
+                        ✅ Transaction sent!{' '}
+                        <a href={`https://bscscan.com/tx/${txHash}`} target="_blank" rel="noopener noreferrer">
+                          View on BscScan
+                        </a>
+                      </p>
+                    )}
+                  </>
+                )}
+              </>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 }
