@@ -1,9 +1,52 @@
 .container {
   max-width: 600px;
   margin: auto;
-  background: white;
+  background: #111;
   padding: 30px;
   border-radius: 12px;
   margin-top: 50px;
-  box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+  color: #e0ffe4;
+  box-shadow: 0 0 20px rgba(0, 255, 100, 0.2);
+}
+
+.title {
+  font-size: 24px;
+  color: #adff2f;
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.select, .textarea {
+  width: 100%;
+  padding: 12px;
+  margin-top: 10px;
+  font-size: 16px;
+  background: #222;
+  color: #fff;
+  border: 1px solid #4caf50;
+  border-radius: 8px;
+  font-family: monospace;
+}
+
+.preview {
+  margin: 10px 0;
+  font-size: 14px;
+  color: #adff2f;
+}
+
+.connected {
+  font-size: 14px;
+  color: #66ffb3;
+  margin-bottom: 10px;
+}
+
+.txinfo {
+  margin-top: 12px;
+  font-size: 14px;
+  color: #90ee90;
+}
+
+.txinfo a {
+  color: #33ff77;
+  text-decoration: underline;
 }
