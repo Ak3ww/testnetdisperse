@@ -3,8 +3,8 @@ import Button from '../components/ui/button';
 import styles from '../styles/DisperseUI.module.css';
 import { ethers } from 'ethers';
 
-const CONTRACT_ADDRESS = '0x59b990c626853DC951A38EFC1dF50abb4d48Ca75';
-const AVG_TOKEN_ADDRESS = '0xa41F142b6eb2b164f8164CAE0716892Ce02f311f';
+const CONTRACT_ADDRESS = '0x1836cAcae9047D65FAe66480CEAd837de7594F49';
+const AVG_TOKEN_ADDRESS = '0x48a7468F60fA55De3D3131daA618F8610C788020';
 
 const CONTRACT_ABI = [
   "function disperseBNB(address[] calldata recipients, uint256[] calldata amounts) external payable",
